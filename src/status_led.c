@@ -193,29 +193,12 @@ static struct bt_conn_cb conn_callbacks = {
     .disconnected = bt_disconnected,
 };
 
-static int status_led_init(void) {
-    LOG_INF("Starting status LED initialization");
+// Delayed initialization work
+static struct k_work_delayable status_led_init_work;
 
-    // Find the status_led_device node
-    if (!DT_NODE_EXISTS(DT_INST(0, zmk_status_led))) {
-        LOG_ERR("No status LED device found");
-        return -ENODEV;
-    }
-
-    // Check if the LED GPIO device is ready
-    if (!device_is_ready(led_gpio.port)) {
-        LOG_ERR("LED GPIO device not ready");
-        return -ENODEV;
-    }
-    
-    int ret = gpio_pin_configure_dt(&led_gpio, GPIO_OUTPUT_INACTIVE);
-    if (ret != 0) {
-        LOG_ERR("Failed to configure GPIO pin: %d", ret);
-        return ret;
-    }
-
-    LOG_INF("GPIO LED configured successfully: port %s, pin %d", 
-            led_gpio.port->name, led_gpio.pin);
+// Function to handle the actual initialization tasks
+static void status_led_init_work_handler(struct k_work *work) {
+    LOG_INF("Executing delayed status LED initialization");
     
     k_work_init_delayable(&status_led_timer, status_led_work_handler);
     
@@ -244,7 +227,38 @@ static int status_led_init(void) {
     }
 #endif
 
-    LOG_INF("Status LED initialized successfully");
+    LOG_INF("Status LED initialization completed");
+}
+
+static int status_led_init(void) {
+    LOG_INF("Starting status LED basic initialization");
+
+    // Find the status_led_device node
+    if (!DT_NODE_EXISTS(DT_INST(0, zmk_status_led))) {
+        LOG_ERR("No status LED device found");
+        return -ENODEV;
+    }
+
+    // Check if the LED GPIO device is ready
+    if (!device_is_ready(led_gpio.port)) {
+        LOG_ERR("LED GPIO device not ready");
+        return -ENODEV;
+    }
+    
+    int ret = gpio_pin_configure_dt(&led_gpio, GPIO_OUTPUT_INACTIVE);
+    if (ret != 0) {
+        LOG_ERR("Failed to configure GPIO pin: %d", ret);
+        return ret;
+    }
+
+    LOG_INF("GPIO LED configured successfully: port %s, pin %d", 
+            led_gpio.port->name, led_gpio.pin);
+    
+    // Initialize and schedule the delayed work
+    k_work_init_delayable(&status_led_init_work, status_led_init_work_handler);
+    k_work_schedule(&status_led_init_work, K_MSEC(1)); // Delay for 1 ms
+
+    LOG_INF("Status LED basic initialization complete, full initialization scheduled");
     return 0;
 }
 
