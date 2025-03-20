@@ -1,0 +1,11 @@
+description: ZMK Status LED
+
+compatible: "zmk,status-led"
+
+include: base.yaml
+
+properties:
+  led:
+    type: phandle
+    required: true
+    description: LED to use for status indication
