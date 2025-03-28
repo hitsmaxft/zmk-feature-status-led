@@ -20,7 +20,7 @@
 #endif
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+LOG_MODULE_REGISTER(zmk_status_led, CONFIG_ZMK_LOG_LEVEL);
 
 #define DT_DRV_COMPAT zmk_status_led
 

@@ -46,7 +46,7 @@ config ZMK_STATUS_LED_ADVERTISING_INTERVAL_MS
 
 config ZMK_STATUS_LED_CONNECTED_MS
     int "Connected indication duration in ms"
-    default 3000
+    default 1000
     help
       Duration of the connected indication in milliseconds.
 
