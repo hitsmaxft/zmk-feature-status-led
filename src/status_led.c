@@ -13,6 +13,7 @@
 #include <zmk/battery.h>
 #include <zmk/ble.h>
 #include <zmk/events/ble_active_profile_changed.h>
+#include <zmk/events/activity_state_changed.h>
 #include <zephyr/drivers/gpio.h>
 
 #if defined(CONFIG_ZMK_SPLIT) && !defined(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
@@ -38,6 +39,7 @@ static bool led_state = false;
 static bool is_advertising = false;
 static bool is_connected = false;
 static bool is_showing_battery_level = false; // Flag to track battery level display
+static bool suspended = false;  // Track suspended state
 
 // Counter variable to track blink state
 static uint8_t blink_count = 0;
@@ -104,8 +106,8 @@ static void blink_n_times(uint8_t n) {
 }
 
 static void status_led_work_handler(struct k_work *work) {
-    // Don't run advertising blinks while showing battery level
-    if (is_showing_battery_level) {
+    // Don't run advertising blinks while showing battery level or when suspended
+    if (is_showing_battery_level || suspended) {
         return;
     }
     
@@ -174,9 +176,9 @@ static void stop_advertising_indicator(void) {
 }
 
 static void bt_connected(struct bt_conn *conn, uint8_t err) {
-    if (err) {
-        return;
-    }
+    // if (err) {
+    //     return;
+    // }
 
     is_connected = true;
     stop_advertising_indicator();
@@ -229,6 +231,30 @@ static void status_led_init_work_handler(struct k_work *work) {
 
     LOG_INF("Status LED initialization completed");
 }
+
+// Handle activity state change events
+static int activity_state_changed_listener(const zmk_event_t *eh) {
+    const struct zmk_activity_state_changed *event = as_zmk_activity_state_changed(eh);
+    
+    switch (event->state) {
+    case ZMK_ACTIVITY_SLEEP:
+        LOG_INF("Status LED system entering sleep mode");
+        suspended = true;
+        status_led_off();
+        break;
+    case ZMK_ACTIVITY_ACTIVE:
+        LOG_INF("Status LED system resuming from sleep");
+        suspended = false;
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+ZMK_LISTENER(status_led, activity_state_changed_listener);
+ZMK_SUBSCRIPTION(status_led, zmk_activity_state_changed);
 
 static int status_led_init(void) {
     LOG_INF("Starting status LED basic initialization");
