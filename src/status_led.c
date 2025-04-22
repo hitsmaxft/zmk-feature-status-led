@@ -43,7 +43,7 @@ static bool suspended = false;  // Track suspended state
 
 // Counter variable to track blink state
 static uint8_t blink_count = 0;
-static const uint8_t MAX_BLINKS = 2; // 2 blinks
+static const uint8_t MAX_BLINKS = 5; // 2 blinks
 
 static int status_led_on(void) {
     int ret = -ENODEV;
@@ -86,24 +86,6 @@ static void start_advertising_indicator(void) {
     k_work_schedule(&status_led_timer, K_NO_WAIT);
 }
 
-static void blink_n_times(uint8_t n) {
-    is_showing_battery_level = true;
-    
-    for (int i = 0; i < n; i++) {
-        status_led_on();
-        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_BATTERY_BLINK_MS));
-        status_led_off();
-        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_BATTERY_PAUSE_MS));
-    }
-    
-    is_showing_battery_level = false;
-    
-    // Start advertising indicator if needed after battery display is complete
-    if (!is_connected && CONFIG_ZMK_STATUS_LED_ADVERTISING) {
-        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_ADVERTISING_INTERVAL_MS));
-        start_advertising_indicator();
-    }
-}
 
 static void status_led_work_handler(struct k_work *work) {
     // Don't run advertising blinks while showing battery level or when suspended
@@ -111,15 +93,20 @@ static void status_led_work_handler(struct k_work *work) {
         return;
     }
     
+    static int pindex = -1;
+
     if (is_advertising && CONFIG_ZMK_STATUS_LED_ADVERTISING) {
         if (led_state) {
             // If LED is on, turn it off and set the timing for the next blink
             status_led_off();
+
+            //blink times to show to current profile index
+            pindex = zmk_ble_active_profile_index();
             
             // Increment counter
             blink_count++;
             
-            if (blink_count < MAX_BLINKS) {
+            if (blink_count < MAX_BLINKS && blink_count < pindex + 1) {
                 // If we haven't reached the required number of blinks, schedule next blink with short interval
                 k_work_schedule(&status_led_timer, K_MSEC(CONFIG_ZMK_STATUS_LED_PAUSE_MS));
             } else {
@@ -138,6 +125,27 @@ static void status_led_work_handler(struct k_work *work) {
         blink_count = 0; // Reset counter when not in advertising mode
     }
 }
+
+#if CONFIG_ZMK_STATUS_LED_BATTERY_LEVEL
+static void blink_n_times(uint8_t n) {
+    is_showing_battery_level = true;
+    
+    for (int i = 0; i < n; i++) {
+        status_led_on();
+        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_BATTERY_BLINK_MS));
+        status_led_off();
+        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_BATTERY_PAUSE_MS));
+    }
+    
+    is_showing_battery_level = false;
+    
+    // Start advertising indicator if needed after battery display is complete
+    if (!is_connected && CONFIG_ZMK_STATUS_LED_ADVERTISING) {
+        k_sleep(K_MSEC(CONFIG_ZMK_STATUS_LED_ADVERTISING_INTERVAL_MS));
+        start_advertising_indicator();
+    }
+}
+#endif
 
 static void show_battery_level(void) {
 #if CONFIG_ZMK_STATUS_LED_BATTERY_LEVEL
